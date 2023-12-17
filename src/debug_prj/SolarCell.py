@@ -15,7 +15,7 @@ class SolarCell_new:
                  Impp: float = 3.15,
                  Vmpp: float = 17.4,
 
-                 experimental_V: Sequence[int] = (),
+                 experimental_V: Sequence[Union[float, int]] = (),
                  experimental_I: Sequence[Union[float, int]] = (),
 
                  Ku: Union[float, int] = 1.0,
@@ -101,12 +101,6 @@ class SolarCell_new:
         self.a1 = a1
         self.a2 = a2
 
-        """if self.Vt is None:
-            self.Vt = self.find_thermal_voltage()
-        self.Ipv_estimate = self.find_photovoltaic_current_estimate()
-        self.I0_estimate = self.find_backward_current_estimate()
-        """
-
         # Algorithm's variables
         self.is_experimental_data_provided = is_experimental_data_provided
         self.fixed_point_method_tolerance = fixed_point_method_tolerance
@@ -115,8 +109,9 @@ class SolarCell_new:
         self.brute_force_range = 0.3
         self.mode = mode
         self.eta = 0.2
-        self.approx_range_minimization = floor(
-            len(self.e_voltage) / 10) if approx_range_minimization is None else approx_range_minimization
+        self.approx_range_minimization = (floor(len(self.e_voltage) / 10) if
+                                          approx_range_minimization is None
+                                          else approx_range_minimization)
 
         # Approximation
         self.I_0 = self.e_current[0]
@@ -126,7 +121,7 @@ class SolarCell_new:
             if 0 in self.e_voltage:
                 self.voltage = self.e_voltage
             else:
-                self.voltage = [0] + self.e_voltage
+                self.voltage = [0.0] + self.e_voltage
         else:
             self.create_voltage_mesh()
 
@@ -152,15 +147,21 @@ class SolarCell_new:
         if self.I0 is None:
             self.Rs, self.Rp, self.I0 = self.find_parameters()
 
+    def __str__(self):
+        return (f'Rs = {self.Rs}' + f'\nRp = {self.Rp}' + f'\na1 = {self.a1}' +
+                f'\na2 = {self.a2}' + f'\nIpv = {self.Ipv}' + f'\nI0 = {self.I0}'
+                f'\nSlope1 = {self.start_slope}' + f'\nSlope2 = {self.end_slope}')
+
     def res_enum(self, weight_arr=None):
         self.current, self.Rs, self.Rp, self.approx_error = self.find_best_fit(weight_arr)
-        mape = self.find_mape(self.e_current, self.current) # weight_arr)
+        mape = self.find_mape(self.e_current, self.current)
         print(f"\nRMSE = {self.approx_error:.5f}")
         print(f"MAPE = {mape:.5f}")
         print(f"Prod = {mape * self.approx_error:.10f}")
 
     def alpha_enum(self, weight_arr=None, use_one_diode_model=True, recalculate=False):
-        self.current, *_, self.approx_error = self.find_best_fit_1(weight_arr, use_one_diode_model, recalculate)
+        self.current, *_, self.approx_error = self.find_best_fit_1(weight_arr, use_one_diode_model,
+                                                                   recalculate)
         mape = self.find_mape(self.e_current, self.current)
         print(f"\nRMSE = {self.approx_error:.5f}")
         print(f"MAPE = {mape:.5f}")
@@ -205,11 +206,12 @@ class SolarCell_new:
         return self.beta
 
     def find_photovoltaic_current(self) -> Union[float, int]:
-        self.Ipv = (self.end_slope * self.start_slope * self.I_0 * self.Vt) / (
+        self.Ipv = ((self.end_slope * self.start_slope * self.I_0 * self.Vt) / (
                 (self.start_slope * self.Vt - self.beta * self.I_0 -
                  self.beta * self.V_0 * self.start_slope) *
-                (self.start_slope - self.end_slope)) - \
-                 self.end_slope * self.I_0 / (self.start_slope - self.end_slope) * self.G / self.Gstc
+                (self.start_slope - self.end_slope)) -
+                    self.end_slope * self.I_0 / (self.start_slope - self.end_slope) *
+                    self.G / self.Gstc)
         return self.Ipv
 
     def find_parameters(self):
@@ -219,6 +221,10 @@ class SolarCell_new:
         self.I0 = (self.Ipv - self.V_0 / self.Rp) / \
                   (exp(self.V_0 / self.Vt / self.a1) + exp(self.V_0 / self.Vt / self.a2) - 2)
         return self.Rs, self.Rp, self.I0
+
+    def find_backward_current(self):
+        return ((self.Ipv - self.V_0 / self.Rp) /
+                (exp(self.V_0 / self.Vt / self.a1) + exp(self.V_0 / self.Vt / self.a2) - 2))
 
     def fixed_point_method(self, Rs, Rp, voltage=None):
         current = [self.Ipv - Rs * self.Ipv / Rp]
@@ -265,7 +271,8 @@ class SolarCell_new:
             current.append(prev_current)
         return current
 
-    def find_mape(self, arr1, arr2, weight_arr=None):
+    @staticmethod
+    def find_mape(arr1, arr2, weight_arr=None):
         arr1 = np.array(arr1)
         arr2 = np.array(arr2)
 
@@ -285,7 +292,8 @@ class SolarCell_new:
         mare = error / np.sum(weight_arr)
         return mare
 
-    def find_rmse(self, arr1, arr2, weight_arr=None):
+    @staticmethod
+    def find_rmse(arr1, arr2, weight_arr=None):
         arr1 = np.array(arr1)
         arr2 = np.array(arr2)
 
@@ -299,7 +307,6 @@ class SolarCell_new:
         wmse = weight_arr * (arr1 - arr2) ** 2
         wmse = np.sum(wmse) / np.sum(weight_arr)
         return np.sqrt(wmse)
-
 
     @staticmethod
     def progress_bar(idx, iter_num):
@@ -418,7 +425,8 @@ class SolarCell_new:
                         if approx_error < best_fit_error:
                             best_fit_error = approx_error
                             best_fit_current = current
-                            best_fit_params = (self.a1, self.a2, self.Rs, self.Rp, self.Ipv, self.I0)
+                            best_fit_params = (self.a1, self.a2, self.Rs, self.Rp,
+                                               self.Ipv, self.I0)
 
         return best_fit_current, *best_fit_params, best_fit_error
 
@@ -435,8 +443,3 @@ class SolarCell_new:
                 max_power_index = index
                 max_power = power
         return max_power_index, max_power
-
-    def __str__(self):
-        return (f'Rs = {self.Rs}' + f'\nRp = {self.Rp}' + f'\na1 = {self.a1}' +
-                f'\na2 = {self.a2}' + f'\nIpv = {self.Ipv}' + f'\nI0 = {self.I0}'
-                f'\nSlope1 = {self.start_slope}' + f'\nSlope2 = {self.end_slope}')
