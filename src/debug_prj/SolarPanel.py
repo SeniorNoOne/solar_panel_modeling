@@ -3,7 +3,7 @@ from math import exp, floor, log
 import numpy as np
 
 
-class SolarCell_new:
+class SolarPanel:
     def __init__(self,
                  cell_num: int = 36,
                  mesh_points_num: int = 1000,
