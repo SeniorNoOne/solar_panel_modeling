@@ -11,6 +11,8 @@ CURRENT_DIR = getcwd()
 INP_FILES_DIR = CURRENT_DIR + "/input_files/"
 OUTPUT_FILES_DIR = CURRENT_DIR + "/output_files/"
 KC200GT_DIR = INP_FILES_DIR + "KC200GT_new.txt"
+ST40_DIR = INP_FILES_DIR + "ST40.txt"
+SP_NAME = None
 
 A_ENUM_1D_FN = 'alpha_enum_one_diode_no_recalc.txt'
 A_ENUM_2D_FN = 'alpha_enum_two_diode_no_recalc.txt'
@@ -18,7 +20,8 @@ R_ENUM_1D_FN = 'res_enum_one_diode.txt'
 R_ENUM_2D_FN = 'res_enum_two_diode.txt'
 CUR_FN = [A_ENUM_1D_FN, A_ENUM_2D_FN, R_ENUM_1D_FN, R_ENUM_2D_FN]
 
-LINESTYLES = ['-', '--', '-.', ':', '--']
+LINESTYLES = ['--', '-.', '--', ':']
+COLORS = ['#ff7f0e', '#d62728', '#2ca02c', '#000000']
 
 SMALL_SIZE = 8
 MEDIUM_SIZE = 14
@@ -34,6 +37,77 @@ plt.rc('xtick', labelsize=BIGGER_SIZE)    # fontsize of the tick labels
 plt.rc('ytick', labelsize=BIGGER_SIZE)    # fontsize of the tick labels
 plt.rc('legend', fontsize=MEDIUM_SIZE)    # legend fontsize
 plt.rc('figure', titlesize=SMALL_SIZE)  #
+
+
+def find_mape(arr1, arr2):
+    arr1 = np.array(arr1)
+    arr2 = np.array(arr2)
+
+    error = []
+    for exper_val, approx_val, in zip(arr1, arr2):
+        if exper_val == 0:
+            error.append(0)
+        else:
+            error.append(abs((exper_val - approx_val) / exper_val))
+    return error
+
+
+def find_rmse(arr1, arr2):
+    arr1 = np.array(arr1)
+    arr2 = np.array(arr2)
+
+    mse = 0
+    for i, j in zip(arr1, arr2):
+        mse += (i - j) ** 2
+    return np.sqrt(mse / len(arr1))
+
+def write_file(filename, arr):
+    with open(OUTPUT_FILES_DIR + filename, 'w') as file:
+        for val in arr:
+            file.write(f'{val}\n')
+    print(f'Done writing {filename}')
+
+
+def read_file(filename):
+    with open(OUTPUT_FILES_DIR + filename) as file:
+        output_data = []
+        for line in file.readlines():
+            output_data.append(float(line))
+    return output_data
+
+
+def get_kc200gt_sp_instance():
+    KC200GT_sp = SolarPanel(cell_num=54, Voc=32.9, Isc=8.21, a1=1.0, a2=1.2,
+                            thermal_coefficient_type='absolute', G=1000,
+                            experimental_V=e_voltage,
+                            experimental_I=e_current,
+                            is_experimental_data_provided=True,
+                            mode='overall')
+    return KC200GT_sp
+
+
+def get_st40_sp_instance():
+    ST40_sp = SolarPanel(cell_num=42, Voc=23.3, Isc=2.68,
+                         Pmpp=40, Impp=2.41, Vmpp=16.6,
+                         Ku=-0.100, Ki=0.35 / 1000, a1=1.0, a2=1.2,
+                         thermal_coefficient_type='absolute', G=1000,
+                         experimental_V=e_voltage,
+                         experimental_I=e_current,
+                         is_experimental_data_provided=True,
+                         mode='overall')
+    return ST40_sp
+
+
+def get_kc200gt():
+    sp_func = get_kc200gt_sp_instance
+    e_v, e_c = get_data(KC200GT_DIR)
+    return sp_func, e_v, e_c, 'KC200GT'
+
+
+def get_st40():
+    sp_func = get_st40_sp_instance
+    e_v, e_c = get_data(ST40_DIR)
+    return sp_func, e_v, e_c, 'ST40'
 
 
 def get_data(filename):
@@ -78,103 +152,32 @@ def get_area_edge_val(arr, fraction):
     return idx - 1
 
 
-def get_max_power_idx(voltage_arr, current_arr):
-    max_power_idx = -1
+def get_max_power_index(voltage_arr, current_arr):
+    max_power_index = -1
     max_power_val = -1
 
     for idx, (v, i) in enumerate(zip(voltage_arr, current_arr)):
         if (power := i * v) > max_power_val:
-            max_power_idx = idx
+            max_power_index = idx
             max_power_val = power
 
-    return max_power_idx
-
-
-def main():
-    r_file = "C:\\Users\\Martyniuk Vadym\\Desktop\\600.txt"
-    voltage_800, current_800 = get_data_1(r_file)
-    solar_cell_num = 54
-    G = 600
-
-    KC200GT_1000 = SolarPanel(cell_num=54, Voc=32.9, Isc=8.21, a1=1.0, a2=1.2,
-                              thermal_coefficient_type='absolute', G=1000,
-                              experimental_V=e_voltage,
-                              experimental_I=e_current,
-                              is_experimental_data_provided=True,
-                              mode='overall')
-
-    """KC200GT_800 = SolarPanel(cell_num=54, Voc=32.9, Isc=8.21, a1=1.0, a2=1.2,
-                                thermal_coefficient_type='absolute', G=1000,
-                                experimental_V=voltage_800,
-                                experimental_I=current_800,
-                                is_experimental_data_provided=True,
-                                mode='overall')"""
-
-    print(KC200GT_1000.start_slope, KC200GT_1000.end_slope)
-
-    power_1000 = np.array(KC200GT_1000.find_power(KC200GT_1000.e_voltage, KC200GT_1000.e_current))
-    weight = normalize(power_1000) ** 2
-    max_power_index, _ = KC200GT_1000.find_max_power_index(power_1000)
-    # weight[max_power_index:] = [1] * (len(weight) - max_power_index)
-    # weight[max_power_index:] = np.linspace(1, 0.5, len(weight) - max_power_index)
-    # KC200GT_1000.res_enum(weight)
-    KC200GT_1000.Rs = 0.26289609693141797
-    KC200GT_1000.Rp = 120.47888324978973
-    KC200GT_1000.alpha_enum(weight, use_one_diode_model=False)
-
-    # plt.plot(voltage_800, current_800)
-    plt.plot(KC200GT_1000.voltage, KC200GT_1000.current)
-    plt.plot(KC200GT_1000.e_voltage, KC200GT_1000.e_current)
-    plt.plot(KC200GT_1000.e_voltage, weight)
-
-    # current_800_new = KC200GT_1000.recalc(KC200GT_1000.Rs * 1000 / 600,
-    # KC200GT_1000.Rp * 1000 / 600, G, voltage_800)
-    # current_800_new = KC200GT_1000.recalc(KC200GT_1000.Rs, KC200GT_1000.Rp, G, voltage_800)
-
-    # plt.plot(voltage_800, current_800_new)
-    plt.grid()
-    plt.show()
-
-    # print(KC200GT_1000.find_rmse(current_800, current_800_new))
-    print(KC200GT_1000)
-
-    """
-    KC200GT_1000.run(weight)
-    power_1000 = KC200GT_1000.find_power(KC200GT_1000.e_voltage, KC200GT_1000.e_current)
-    current_800_new = KC200GT_1000.recalc(G)
-    """
-
-    """
-    plt.plot(KC200GT_1000.e_voltage, KC200GT_1000.e_current)
-    plt.plot(KC200GT_1000.voltage, KC200GT_1000.current)
-    # plt.plot(KC200GT_1000.voltage, power_1000)
-    plt.plot(KC200GT_1000.voltage, weight)
-    plt.plot(voltage_800, current_800)
-    plt.plot(KC200GT_1000.voltage, current_800_new)
-    plt.grid()
-    plt.show()
-    """
+    return max_power_index
 
 
 def plot_iv_curve_split():
-    area_1_idx = get_area_edge_val(e_voltage, 0.55)
-    area_2_idx = get_area_edge_val(e_voltage, 0.9)
-
-    max_power_idx = 0
-    max_power = -1
-    for idx, (v, i) in enumerate(zip(e_voltage, e_current)):
-        if (power := v * i) > max_power:
-            max_power = power
-            max_power_idx = idx
+    # Works with KC200GT panel
+    e_v, e_c = get_data(KC200GT_DIR)
+    area_1_idx = get_area_edge_val(e_v, 0.55)
+    area_2_idx = get_area_edge_val(e_v, 0.9)
 
     fig, ax = plt.subplots(1, 1)
 
-    ax.plot(e_voltage, e_current)
-    ax.scatter(e_voltage[0], e_current[0], s=30, c='r', zorder=2)
-    ax.scatter(e_voltage[-1], e_current[-1], s=30, c='r', zorder=2)
-    ax.scatter(e_voltage[max_power_idx], e_current[max_power_idx], s=30, c='r', zorder=2)
-    ax.axvline(e_voltage[area_1_idx], linestyle='--', color='black')
-    ax.axvline(e_voltage[area_2_idx], linestyle='--', color='black')
+    ax.plot(e_v, e_c)
+    ax.scatter(e_v[0], e_c[0], s=30, c='r', zorder=2)
+    ax.scatter(e_v[-1], e_c[-1], s=30, c='r', zorder=2)
+    ax.scatter(e_v[max_power_index], e_c[max_power_index], s=30, c='r', zorder=2)
+    ax.axvline(e_v[area_1_idx], linestyle='--', color='black')
+    ax.axvline(e_v[area_2_idx], linestyle='--', color='black')
     ax.grid()
     ax.set_xlabel('V, B')
     ax.set_ylabel('I, A')
@@ -193,17 +196,20 @@ def plot_iv_curve_split():
 
 
 def plot_slope_first():
-    area_len = floor(len(e_voltage) * 0.22)
-    k, b = np.polyfit(e_voltage[:area_len], e_current[:area_len], 1)
+    # Works with KC200GT panel
+    e_v, e_c = get_data(KC200GT_DIR)
+    area_len = floor(len(e_v) * 0.22)
+    k, b = np.polyfit(e_v[:area_len], e_c[:area_len], 1)
 
-    x_line = np.array(e_voltage[:area_len])
+    x_line = np.array(e_v[:area_len])
     y_line = k * x_line + np.full_like(x_line, b)
 
     x1, x2 = 1.0, 4.5
     y1, y2 = 8.15, 8.18
+
     fig, ax = plt.subplots(1, 1)
 
-    ax.plot(e_voltage[:area_len], e_current[:area_len], marker='.', linestyle='-')
+    ax.plot(e_v[:area_len], e_c[:area_len], marker='.', linestyle='-')
     ax.plot(x_line, y_line, linestyle='--')
     ax.set_ylim(top=8.21)
     ax.set_xlim(left=0)
@@ -213,7 +219,7 @@ def plot_slope_first():
     plt.tight_layout()
 
     axins = zoomed_inset_axes(ax, 2, loc=1)
-    axins.plot(e_voltage[:area_len], e_current[:area_len], marker='.', linestyle='-')
+    axins.plot(e_v[:area_len], e_c[:area_len], marker='.', linestyle='-')
     axins.plot(x_line, y_line, linestyle='--')
     axins.set_xlim(x1, x2)
     axins.set_ylim(y1, y2)
@@ -221,32 +227,23 @@ def plot_slope_first():
     plt.xticks(visible=False)
     plt.yticks(visible=False)
     mark_inset(ax, axins, loc1=2, loc2=3, fc="none", ec='0.5')
-
-    """axins = zoomed_inset_axes(ax, 1.7, loc=3)
-    axins.plot(e_voltage[:area_len], e_current[:area_len], marker='.', linestyle='-')
-    axins.plot(x_line, y_line, linestyle='--')
-    axins.set_xlim(8, 12)
-    axins.set_ylim(8.09, 8.12)
-    axins.grid()
-    plt.xticks(visible=False)
-    plt.yticks(visible=False)
-    mark_inset(ax, axins, loc1=1, loc2=4, fc='none', ec='0.5')"""
-
     plt.show()
 
 
 def plot_slope_second():
-    area_len = -floor(len(e_voltage) * 0.085)
+    # Works with KC200GT panel
+    e_v, e_c = get_data(KC200GT_DIR)
+    area_len = -floor(len(e_v) * 0.085)
     area_len_ext = 5 * area_len
 
-    x = e_voltage[area_len:]
-    y = e_current[area_len:]
-    V_0 = e_voltage[-1]
+    x = e_v[area_len:]
+    y = e_c[area_len:]
+    V_0 = e_v[-1]
 
     a_1, a_2 = np.polyfit(x, y, 1)
     b_1, b_2, b_3 = np.polyfit(x, y, 2)
 
-    x_line = np.array(e_voltage[area_len_ext:])
+    x_line = np.array(e_v[area_len_ext:])
     y_line_1 = a_1 * x_line + a_2
     y_line_2 = b_1 * x_line * x_line + b_2 * x_line + b_3
 
@@ -254,11 +251,11 @@ def plot_slope_second():
     print(b_1, b_2, b_3)
     print(2 * b_1 * V_0 + b_2)
 
-    plt.plot(e_voltage[area_len_ext:], e_current[area_len_ext:], marker='.', linestyle='-')
+    plt.plot(e_v[area_len_ext:], e_c[area_len_ext:], marker='.', linestyle='-')
     plt.plot(x_line, y_line_1, linestyle='--')
     plt.plot(x_line, y_line_2, linestyle='-.')
     plt.ylim(bottom=0)
-    plt.axvline(e_voltage[area_len], linestyle='--', color='black')
+    plt.axvline(e_v[area_len], linestyle='--', color='black')
     plt.grid()
     plt.xlabel('V, B')
     plt.ylabel('I, A')
@@ -267,20 +264,9 @@ def plot_slope_second():
 
 
 def plot_power_curve_window():
-    sp = SolarPanel(cell_num=54, Voc=32.9, Isc=8.21, a1=1.0, a2=1.2,
-                    thermal_coefficient_type='absolute', G=1000,
-                    experimental_V=e_voltage,
-                    experimental_I=e_current,
-                    is_experimental_data_provided=True,
-                    mode='overall')
+    power = np.array([i * v for i, v in zip(e_current, e_voltage)])
+    power_window = normalize(power)
 
-    power_window = normalize(np.array(sp.find_power(sp.e_voltage, sp.e_current)))
-    max_power_index, _ = sp.find_max_power_index(power_window)
-    std = np.std(e_voltage)
-    window = np.exp(-(e_voltage - e_voltage[max_power_index]) ** 2 / 2 / std)
-
-    # plt.plot(e_voltage, e_current, marker='.', linestyle='-')
-    # plt.plot(e_voltage, window, linestyle='--')
     plt.plot(e_voltage, power_window, linestyle='-')
     plt.plot(e_voltage, power_window ** 2, linestyle='--')
     plt.plot(e_voltage, power_window ** 3, linestyle='-.')
@@ -295,15 +281,10 @@ def plot_power_curve_window():
 
 
 def plot_high_order_power_curve():
-    sp = SolarPanel(cell_num=54, Voc=32.9, Isc=8.21, a1=1.0, a2=1.2,
-                    thermal_coefficient_type='absolute', G=1000,
-                    experimental_V=e_voltage,
-                    experimental_I=e_current,
-                    is_experimental_data_provided=True,
-                    mode='overall')
+    sp = sp_init_func()
+    power = np.array([i * v for i, v in zip(e_current, e_voltage)])
+    power_window = normalize(power)
 
-    power_window = normalize(np.array(sp.find_power(sp.e_voltage, sp.e_current)))
-    max_power_index, _ = sp.find_max_power_index(power_window)
     power_window_order_4 = power_window ** 4
     power_window_order_4[max_power_index:] = power_window[max_power_index:]
     sp.alpha_enum(power_window_order_4, use_one_diode_model=False)
@@ -326,16 +307,8 @@ def plot_high_order_power_curve():
 
 
 def plot_gaussian_window(use_alpha_enum=True, use_one_diode_model=False, recalculate=False):
-    sp = SolarPanel(cell_num=54, Voc=32.9, Isc=8.21, a1=1.0, a2=1.2,
-                    thermal_coefficient_type='absolute', G=1000,
-                    experimental_V=e_voltage,
-                    experimental_I=e_current,
-                    is_experimental_data_provided=True,
-                    mode='overall')
+    sp = sp_init_func()
     # sp.a2 = 10 ** 10
-
-    power_window = normalize(np.array(sp.find_power(sp.e_voltage, sp.e_current)))
-    max_power_index, _ = sp.find_max_power_index(power_window)
 
     Vmpp = e_voltage[max_power_index]
     eta = 0.1
@@ -348,11 +321,14 @@ def plot_gaussian_window(use_alpha_enum=True, use_one_diode_model=False, recalcu
             sp.a2 = 10 ** 10
         sp.res_enum(window)
 
-    print(sp.current[-1])
+    print(sp, '\n')
+
+    mape = find_mape(e_current, sp.current)
 
     plt.plot(e_voltage[first_idx:], e_current[first_idx:], linestyle='-')
     plt.plot(sp.voltage[first_idx:], sp.current[first_idx:], linestyle='--')
     plt.plot(e_voltage[first_idx:], window[first_idx:], linestyle='-.')
+    plt.plot(e_voltage, mape)
     plt.axvline(e_voltage[second_idx], linestyle='--', color='black')
 
     plt.ylim(bottom=0)
@@ -403,21 +379,13 @@ def plot_error_bar_graph():
     ax.set_xticks(x + width, error_names)
     ax.legend(loc='upper right', ncols=3)
 
-    # ax.set_ylim(0, 0.125) # Alpha enum
-    ax.set_ylim(0, 0.025) # Res enum
+    # ax.set_ylim(0, 0.125)  # Alpha enum
+    ax.set_ylim(0, 0.025)  # Res enum
     plt.show()
 
 
 def plot_different_alpha_enum_approaches():
-    sp = SolarPanel(cell_num=54, Voc=32.9, Isc=8.21, a1=1.0, a2=1.2,
-                    thermal_coefficient_type='absolute', G=1000,
-                    experimental_V=e_voltage,
-                    experimental_I=e_current,
-                    is_experimental_data_provided=True,
-                    mode='overall')
-
-    power_window = normalize(np.array(sp.find_power(sp.e_voltage, sp.e_current)))
-    max_power_index, _ = sp.find_max_power_index(power_window)
+    sp = sp_init_func()
 
     Vmpp = e_voltage[max_power_index]
     eta = 0.1
@@ -439,12 +407,10 @@ def plot_different_alpha_enum_approaches():
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=FIGSIZE_WIDE)
 
     # area 2
-    print(sp.voltage[first_idx:second_idx])
-
     ax1.plot(e_voltage[first_idx:second_idx], e_current[first_idx:second_idx], linestyle='-')
     ax1.plot(sp.voltage[first_idx:second_idx], current_2[first_idx:second_idx], linestyle='--')
-    ax1.plot(sp.voltage[first_idx:second_idx], current_1[first_idx:second_idx], linestyle=':',
-             color='k')
+    ax1.plot(sp.voltage[first_idx:second_idx], current_1[first_idx:second_idx],
+             linestyle=':', color='k')
     ax1.grid()
     ax1.set_xlabel('V, B \na')
     ax1.set_ylabel('I, A')
@@ -468,16 +434,9 @@ def plot_different_alpha_enum_approaches():
 
 
 def plot_res_enum_different_windows():
-    sp = SolarPanel(cell_num=54, Voc=32.9, Isc=8.21, a1=1.0, a2=1.2,
-                    thermal_coefficient_type='absolute', G=1000,
-                    experimental_V=e_voltage,
-                    experimental_I=e_current,
-                    is_experimental_data_provided=True,
-                    mode='overall')
+    sp = sp_init_func()
 
     power_window = normalize(np.array(sp.find_power(sp.e_voltage, sp.e_current)))
-    max_power_index, _ = sp.find_max_power_index(power_window)
-
     Vmpp = e_voltage[max_power_index]
     eta = 0.1
 
@@ -503,6 +462,8 @@ def plot_res_enum_different_windows():
     plt.plot(sp.voltage[first_idx:second_idx], current_3[first_idx:second_idx], linestyle=':')
     plt.plot(sp.voltage[first_idx:second_idx], current_4[first_idx:second_idx], linestyle='--')
     plt.axvline(e_voltage[second_idx], linestyle='--', color='black')
+    plt.ylim(bottom=0)
+    plt.xlim(left=0)
 
     plt.grid()
     plt.xlabel('V, B')
@@ -510,7 +471,7 @@ def plot_res_enum_different_windows():
     plt.show()
 
 
-def get_first_method_current():
+def get_first_method_current_kc200gt(Rs=0.320, Rp=160.5):
     sp = SolarPanel(cell_num=54, Voc=32.9, Isc=8.21,
                     Pmpp=200, Impp=7.61, Vmpp=26.3,
                     Ku=-0.123, Ki=3.18 / 1000, a1=1.0, a2=1.2,
@@ -520,25 +481,63 @@ def get_first_method_current():
                     experimental_I=e_current,
                     is_experimental_data_provided=True,
                     mode='overall')
-
-    Rs = 0.320
-    Rp = 160.5
-
     sp.Rs = Rs
     sp.Rp = Rp
-
     # sp.I0 = sp.find_backward_current()
+
     current_raw = sp.fixed_point_method(Rs, Rp)
     original_len = len(current_raw)
     current = [i for i in current_raw if i >= 0]
-    current.append(current_raw[len(current)])
+    if len(current) < original_len:
+        current.append(current_raw[len(current)])
+
+    print(sp)
+    print('RMSE:', rmse := sp.find_rmse(e_current, current, ignore_shape_mismatch=True))
+    print('MAPE:', mape := sp.find_mape(e_current, current, ignore_shape_mismatch=True))
+    print('P:', rmse * mape)
+    print()
+
     return current, original_len - len(current)
 
 
-def get_second_method_current(Ipv=8.223, I0=2.152e-9, Rs=0.308, Rp=193.049):
+def get_first_method_current_st40(Rs=1.6, Rp=263.3):
+    sp = SolarPanel(cell_num=42, Voc=23.3, Isc=2.68,
+                    Pmpp=40, Impp=2.41, Vmpp=16.6,
+                    Ku=-0.100, Ki=0.35 / 1000, a1=1.0, a2=1.2,
+                    I0=1.13 * 10 ** (-9), Ipv=2.68,
+                    thermal_coefficient_type='absolute', G=1000,
+                    experimental_V=e_voltage,
+                    experimental_I=e_current,
+                    is_experimental_data_provided=True,
+                    mode='overall')
+
+    sp.Rs = Rs
+    sp.Rp = Rp
+    # sp.I0 = sp.find_backward_current()
+
+    current_raw = sp.fixed_point_method(Rs, Rp)
+    original_len = len(current_raw)
+    current = [i for i in current_raw if i >= 0]
+    if len(current) < original_len:
+        current.append(current_raw[len(current)])
+
+    Vmpp = e_voltage[max_power_index]
+    eta = 0.1
+    window = np.exp(-0.5 * ((e_voltage - Vmpp) / eta / Vmpp / 2) ** 2)
+
+    print(sp)
+    print('RMSE:', rmse := sp.find_rmse(e_current, current, window, ignore_shape_mismatch=True))
+    print('MAPE:', mape := sp.find_mape(e_current, current, window, ignore_shape_mismatch=True))
+    print('P:', rmse * mape)
+    print()
+
+    return current, original_len - len(current)
+
+
+def get_second_method_current_kc200gt(Ipv=8.223, I0=2.152e-9, Rs=0.308, Rp=193.049, a1=1.076):
     sp = SolarPanel(cell_num=54, Voc=32.9, Isc=8.21,
                     Pmpp=200, Impp=7.61, Vmpp=26.3,
-                    Ku=-0.123, Ki=3.18 / 1000, a1=1.076, a2=10 ** 10,
+                    Ku=-0.123, Ki=3.18 / 1000, a1=a1, a2=10 ** 10,
                     I0=I0, Ipv=Ipv,
                     thermal_coefficient_type='absolute', G=1000,
                     experimental_V=e_voltage,
@@ -547,20 +546,57 @@ def get_second_method_current(Ipv=8.223, I0=2.152e-9, Rs=0.308, Rp=193.049):
                     mode='overall')
     sp.Rs = Rs
     sp.Rp = Rp
-    sp.I0 = sp.find_backward_current()
-
-    print(sp)
+    # sp.I0 = sp.find_backward_current()
 
     current_raw = sp.fixed_point_method(Rs, Rp)
     original_len = len(current_raw)
     current = [i for i in current_raw if i >= 0]
-    # current.append(current_raw[len(current)])
+    if len(current) < original_len:
+        current.append(current_raw[len(current)])
+
+    print(sp)
+    print('RMSE:', rmse := sp.find_rmse(e_current, current, ignore_shape_mismatch=True))
+    print('MAPE:', mape := sp.find_mape(e_current, current, ignore_shape_mismatch=True))
+    print('P:', rmse * mape)
+    print()
+
+    return current, original_len - len(current)
+
+
+def get_second_method_current_st40(Ipv=2.696, I0=1.414e-9, Rs=1.494, Rp=257.166, a1=1.135):
+    sp = SolarPanel(cell_num=42, Voc=23.3, Isc=2.68,
+                    Pmpp=40, Impp=2.41, Vmpp=16.6,
+                    Ku=-0.100, Ki=0.35 / 1000, a1=1.0, a2=1.2,
+                    I0=I0, Ipv=Ipv,
+                    thermal_coefficient_type='absolute', G=1000,
+                    experimental_V=e_voltage,
+                    experimental_I=e_current,
+                    is_experimental_data_provided=True,
+                    mode='overall')
+
+    sp.Rs = Rs
+    sp.Rp = Rp
+    # sp.I0 = sp.find_backward_current()
+
+    current_raw = sp.fixed_point_method(Rs, Rp)
+    original_len = len(current_raw)
+    current = [i for i in current_raw if i >= 0]
+    if len(current) < original_len:
+        current.append(current_raw[len(current)])
+
+    print(sp)
+    print('RMSE:', rmse := sp.find_rmse(e_current, current, ignore_shape_mismatch=True))
+    print('MAPE:', mape := sp.find_mape(e_current, current, ignore_shape_mismatch=True))
+    print('P:', rmse * mape)
+    print()
+
     return current, original_len - len(current)
 
 
 def proposed_model_current():
     current_arr = []
     for idx, filename in enumerate(CUR_FN):
+        filename = SP_NAME + '_' + filename
         if filename in listdir(OUTPUT_FILES_DIR):
             print(f'Found {filename} current. Loading')
             current_arr.append(read_file(filename))
@@ -569,19 +605,19 @@ def proposed_model_current():
                 case 0:
                     current_arr.append(plot_gaussian_window(use_alpha_enum=True,
                                                             use_one_diode_model=True))
-                    write_file(A_ENUM_1D_FN, current_arr[-1])
+                    write_file(filename, current_arr[-1])
                 case 1:
                     current_arr.append(plot_gaussian_window(use_alpha_enum=True,
                                                             use_one_diode_model=False))
-                    write_file(A_ENUM_2D_FN, current_arr[-1])
+                    write_file(filename, current_arr[-1])
                 case 2:
                     current_arr.append(plot_gaussian_window(use_alpha_enum=False,
                                                             use_one_diode_model=True))
-                    write_file(R_ENUM_1D_FN, current_arr[-1])
+                    write_file(filename, current_arr[-1])
                 case 3:
                     current_arr.append(plot_gaussian_window(use_alpha_enum=False,
                                                             use_one_diode_model=False))
-                    write_file(R_ENUM_2D_FN, current_arr[-1])
+                    write_file(filename, current_arr[-1])
     return current_arr
 
 
@@ -631,8 +667,8 @@ def plot_proposed_model_current_area2():
     alpha_cur = current_arr[0]
     res_cur = current_arr[3]
 
-    zoom_area_left = get_area_edge_val(e_voltage, (e_voltage[max_power_idx] - 2) / e_voltage[-1])
-    zoom_area_right = get_area_edge_val(e_voltage, (e_voltage[max_power_idx] + 2) / e_voltage[-1])
+    zoom_area_left = get_area_edge_val(e_voltage, (e_voltage[max_power_index] - 2) / e_voltage[-1])
+    zoom_area_right = get_area_edge_val(e_voltage, (e_voltage[max_power_index] + 2) / e_voltage[-1])
 
     fig, ax = plt.subplots(1, 1)
 
@@ -640,7 +676,7 @@ def plot_proposed_model_current_area2():
     ax.plot(e_voltage[first_idx:second_idx], alpha_cur[first_idx:second_idx], linestyle='--')
     ax.plot(e_voltage[first_idx:second_idx], res_cur[first_idx:second_idx], linestyle=':',
             color='k')
-    ax.scatter(e_voltage[max_power_idx], e_current[max_power_idx], s=30, c='r', zorder=2)
+    ax.scatter(e_voltage[max_power_index], e_current[max_power_index], s=30, c='r', zorder=2)
     ax.grid()
     ax.set_xlabel('V, B')
     ax.set_ylabel('I, A')
@@ -654,7 +690,7 @@ def plot_proposed_model_current_area2():
     axins.plot(e_voltage, e_current)
     axins.plot(e_voltage, alpha_cur, linestyle='--')
     axins.plot(e_voltage, res_cur, linestyle=':', color='k')
-    axins.scatter(e_voltage[max_power_idx], e_current[max_power_idx], s=30, c='r', zorder=2)
+    axins.scatter(e_voltage[max_power_index], e_current[max_power_index], s=30, c='r', zorder=2)
     axins.set_xlim(e_voltage[zoom_area_left], e_voltage[zoom_area_right])
     axins.set_ylim(e_current[zoom_area_right], e_current[zoom_area_left])
     axins.grid()
@@ -691,7 +727,7 @@ def plot_proposed_model_current_area3():
     axins.plot(e_voltage, alpha_cur, linestyle='--')
     axins.plot(e_voltage, res_cur, linestyle=':', color='k')
     axins.scatter(e_voltage[-1], e_current[-1], s=30, c='r', zorder=2)
-    axins.scatter(e_voltage[max_power_idx], e_current[max_power_idx], s=30, c='r', zorder=2)
+    axins.scatter(e_voltage[max_power_index], e_current[max_power_index], s=30, c='r', zorder=2)
     axins.set_xlim(e_voltage[zoom_area_left], e_voltage[zoom_area_right])
     axins.set_ylim(e_current[zoom_area_right], e_current[zoom_area_left])
     axins.grid()
@@ -701,10 +737,7 @@ def plot_proposed_model_current_area3():
     plt.show()
 
 
-def plot_proposed_model_current_total():
-    area_1_idx = get_area_edge_val(e_voltage, 0.65)
-    area_2_idx = get_area_edge_val(e_voltage, 0.92)
-
+def plot_proposed_model_current_total_kc200gt():
     current_arr = proposed_model_current()
     alpha_cur = current_arr[0]
     res_cur = current_arr[3]
@@ -714,9 +747,9 @@ def plot_proposed_model_current_total():
     ax.plot(e_voltage, e_current, linestyle='-')
     ax.plot(e_voltage, alpha_cur, linestyle='--')
     ax.plot(e_voltage, res_cur, linestyle=':', color='k')
-    ax.axvline(e_voltage[area_1_idx], linestyle='--', color='black')
-    ax.axvline(e_voltage[area_2_idx], linestyle='--', color='black')
-    ax.scatter(e_voltage[max_power_idx], e_current[max_power_idx], s=30, c='r', zorder=2)
+    # ax.axvline(e_voltage[first_idx], linestyle='--', color='black')
+    # ax.axvline(e_voltage[second_idx], linestyle='--', color='black')
+    ax.scatter(e_voltage[max_power_index], e_current[max_power_index], s=30, c='r', zorder=2)
     ax.grid()
     ax.set_xlabel('V, B')
     ax.set_ylabel('I, A')
@@ -725,14 +758,221 @@ def plot_proposed_model_current_total():
     plt.tight_layout()
 
     # area 2
-    zoom_area_left = get_area_edge_val(e_voltage, (e_voltage[max_power_idx] - 2) / e_voltage[-1]) - 1
-    zoom_area_right = get_area_edge_val(e_voltage, (e_voltage[max_power_idx] + 2) / e_voltage[-1])
+    zoom_area_left = get_area_edge_val(e_voltage, (e_voltage[max_power_index] - 2) / e_voltage[-1]) - 1
+    zoom_area_right = get_area_edge_val(e_voltage, (e_voltage[max_power_index] + 2) / e_voltage[-1])
 
     axins = zoomed_inset_axes(ax, 5, loc=3)
     axins.plot(e_voltage, e_current)
     axins.plot(e_voltage, alpha_cur, linestyle='--')
     axins.plot(e_voltage, res_cur, linestyle=':', color='k')
-    axins.scatter(e_voltage[max_power_idx], e_current[max_power_idx], s=30, c='r', zorder=2)
+    axins.scatter(e_voltage[max_power_index], e_current[max_power_index], s=30, c='r', zorder=2)
+    axins.set_xlim(e_voltage[zoom_area_left], e_voltage[zoom_area_right])
+    axins.set_ylim(e_current[zoom_area_right], e_current[zoom_area_left])
+    axins.grid()
+    plt.xticks(visible=False)
+    plt.yticks(visible=False)
+    mark_inset(ax, axins, loc1=2, loc2=4, fc='none', ec='0.5')
+
+    plt.show()
+
+
+def plot_proposed_model_current_total_st40():
+    current_arr = proposed_model_current()
+
+    fig, ax = plt.subplots(1, 1)
+
+    ax.plot(e_voltage, e_current, linestyle='-')
+
+    for idx, cur in enumerate(current_arr):
+        ax.plot(e_voltage, cur, linestyle=LINESTYLES[idx], color=COLORS[idx])
+
+    # ax.axvline(e_voltage[first_idx], linestyle='--', color='black')
+    # ax.axvline(e_voltage[second_idx], linestyle='--', color='black')
+    ax.scatter(e_voltage[max_power_index], e_current[max_power_index], s=30, c='r', zorder=2)
+    ax.grid()
+    ax.set_xlabel('V, B')
+    ax.set_ylabel('I, A')
+    ax.set_ylim(bottom=0)
+    ax.set_xlim(left=0)
+    plt.tight_layout()
+
+    # area 2
+    zoom_area_left = get_area_edge_val(e_voltage, (e_voltage[max_power_index] - 2) / e_voltage[-1]) - 1
+    zoom_area_right = get_area_edge_val(e_voltage, (e_voltage[max_power_index] + 2) / e_voltage[-1])
+
+    axins = zoomed_inset_axes(ax, 3, loc=3)
+    axins.plot(e_voltage, e_current)
+    # axins.plot(e_voltage, alpha_cur, linestyle='--')
+    # axins.plot(e_voltage, res_cur, linestyle=':', color='k')
+
+    for idx, cur in enumerate(current_arr):
+        axins.plot(e_voltage, cur, linestyle=LINESTYLES[idx], color=COLORS[idx])
+
+    axins.scatter(e_voltage[max_power_index], e_current[max_power_index], s=30, c='r', zorder=2)
+    axins.set_xlim(e_voltage[zoom_area_left], e_voltage[zoom_area_right])
+    axins.set_ylim(e_current[zoom_area_right], e_current[zoom_area_left])
+    axins.grid()
+    plt.xticks(visible=False)
+    plt.yticks(visible=False)
+    mark_inset(ax, axins, loc1=2, loc2=4, fc='none', ec='0.5')
+
+    plt.show()
+
+
+def plot_proposed_model_current_total():
+    print(f'\n{SP_NAME}\n')
+    match SP_NAME:
+        case 'KC200GT':
+            plot_proposed_model_current_total_kc200gt()
+        case 'ST40':
+            plot_proposed_model_current_total_st40()
+        case _:
+            raise ValueError('Wrong SP name')
+
+
+def compare_methods_kc200gt():
+    x_shift = 7
+
+    c_1, shift_1 = get_first_method_current_kc200gt()
+    c_21, shift_21 = get_second_method_current_kc200gt()
+    c_22, shift_22 = get_second_method_current_kc200gt(8.21, 2.195e-9, 0.284, 157.853)
+
+    v_1 = e_voltage[:-shift_1] if shift_1 else e_voltage
+    v_21 = e_voltage[:-shift_21] if shift_21 else e_voltage
+    v_22 = e_voltage[:-shift_22] if shift_22 else e_voltage
+
+    current_arr = proposed_model_current()
+    res_enum = current_arr[-1]
+
+    fig, ax = plt.subplots(1, 1)
+
+    ax.plot(e_voltage, e_current, linestyle='-')
+    ax.plot(v_1, c_1, linestyle='--')
+    ax.plot(v_21, c_21, linestyle='-.', color='m')
+    ax.plot(v_22, c_22, linestyle=':', color='r')
+    ax.plot(e_voltage, res_enum, linestyle=':', color='black')
+    # ax.axvline(e_voltage[first_idx], linestyle='--', color='black')
+    # ax.axvline(e_voltage[second_idx], linestyle='--', color='black')
+
+    ax.grid()
+    ax.set_xlabel('V, B')
+    ax.set_ylabel('I, A')
+    ax.set_ylim(bottom=0)
+    ax.set_xlim(left=0, right=e_voltage[-1] + x_shift)
+    plt.tight_layout()
+
+    # MPPT zoom
+    zoom_area_left = get_area_edge_val(e_voltage, (e_voltage[max_power_index] - 2) / e_voltage[-1]) - 1
+    zoom_area_right = get_area_edge_val(e_voltage, (e_voltage[max_power_index] + 2) / e_voltage[-1])
+
+    axins = zoomed_inset_axes(ax, 4, loc=3)
+    axins.plot(e_voltage, e_current, linestyle='-')
+    axins.plot(v_1[zoom_area_left:zoom_area_right + 1],
+               c_1[zoom_area_left:zoom_area_right + 1], linestyle='--')
+    axins.plot(v_21[zoom_area_left:zoom_area_right + 1],
+               c_21[zoom_area_left:zoom_area_right + 1], linestyle='-.', color='m')
+    axins.plot(v_22[zoom_area_left:zoom_area_right + 1],
+               c_22[zoom_area_left:zoom_area_right + 1], linestyle=':', color='r')
+    axins.plot(e_voltage, res_enum, linestyle=':', color='black')
+    axins.scatter(e_voltage[max_power_index], e_current[max_power_index], s=30, c='r', zorder=2)
+    axins.set_xlim(e_voltage[zoom_area_left], e_voltage[zoom_area_right])
+    axins.set_ylim(e_current[zoom_area_right], e_current[zoom_area_left])
+    axins.grid()
+    plt.xticks(visible=False)
+    plt.yticks(visible=False)
+    mark_inset(ax, axins, loc1=2, loc2=4, fc='none', ec='0.5')
+
+    # Last area zoom
+    zoom_area_left = get_area_edge_val(e_voltage, (e_voltage[-1] - 1.5) / e_voltage[-1]) - 1
+    zoom_area_right = get_area_edge_val(e_voltage, 1) + 1
+
+    axins = zoomed_inset_axes(ax, 2.3, loc=4)
+    axins.plot(e_voltage, e_current, linestyle='-')
+    axins.plot(v_1[zoom_area_left:zoom_area_right + 1],
+               c_1[zoom_area_left:zoom_area_right + 1], linestyle='--')
+    axins.plot(v_21[zoom_area_left:zoom_area_right + 1],
+               c_21[zoom_area_left:zoom_area_right + 1], linestyle='-.', color='m')
+    axins.plot(v_22[zoom_area_left:zoom_area_right + 1],
+               c_22[zoom_area_left:zoom_area_right + 1], linestyle=':', color='r')
+    axins.plot(e_voltage, res_enum, linestyle=':', color='black')
+    axins.scatter(e_voltage[max_power_index], e_current[max_power_index], s=30, c='r', zorder=2)
+    axins.set_xlim(e_voltage[zoom_area_left], e_voltage[zoom_area_right])
+    axins.set_ylim(e_current[zoom_area_right], e_current[zoom_area_left])
+    axins.grid()
+    plt.xticks(visible=False)
+    plt.yticks(visible=False)
+    mark_inset(ax, axins, loc1=2, loc2=4, fc='none', ec='0.5')
+
+    plt.show()
+
+
+def compare_methods_st40():
+    x_shift = 6
+
+    c_1, shift_1 = get_first_method_current_st40()
+    c_21, shift_21 = get_second_method_current_st40()
+    c_22, shift_22 = get_second_method_current_st40(2.68, 1.455e-9, 1.3723,194.664)
+
+    v_1 = e_voltage[:-shift_1] if shift_1 else e_voltage
+    v_21 = e_voltage[:-shift_21] if shift_21 else e_voltage
+    v_22 = e_voltage[:-shift_22] if shift_22 else e_voltage
+
+    current_arr = proposed_model_current()
+    res_enum = current_arr[-1]
+
+    fig, ax = plt.subplots(1, 1)
+
+    ax.plot(e_voltage, e_current, linestyle='-')
+    ax.plot(v_1, c_1, linestyle='--')
+    ax.plot(v_21, c_21, linestyle='-.', color='m')
+    ax.plot(v_22, c_22, linestyle=':', color='r')
+    ax.scatter(e_voltage[max_power_index], e_current[max_power_index], s=30, c='r', zorder=2)
+    ax.plot(e_voltage, res_enum, linestyle=':', color='black')
+    # ax.axvline(e_voltage[first_idx], linestyle='--', color='black')
+    # ax.axvline(e_voltage[second_idx], linestyle='--', color='black')
+
+    ax.grid()
+    ax.set_xlabel('V, B')
+    ax.set_ylabel('I, A')
+    ax.set_ylim(bottom=0)
+    ax.set_xlim(left=0, right=e_voltage[-1] + x_shift)
+    plt.tight_layout()
+
+    # MPPT zoom
+    zoom_area_left = get_area_edge_val(e_voltage, (e_voltage[max_power_index] - 2) / e_voltage[-1]) - 1
+    zoom_area_right = get_area_edge_val(e_voltage, (e_voltage[max_power_index] + 2) / e_voltage[-1])
+
+    axins = zoomed_inset_axes(ax, 3, loc=3)
+    axins.plot(e_voltage, e_current, linestyle='-')
+    axins.plot(v_1[zoom_area_left:zoom_area_right + 1],
+               c_1[zoom_area_left:zoom_area_right + 1], linestyle='--')
+    axins.plot(v_21[zoom_area_left:zoom_area_right + 1],
+               c_21[zoom_area_left:zoom_area_right + 1], linestyle='-.', color='m')
+    axins.plot(v_22[zoom_area_left:zoom_area_right + 1],
+               c_22[zoom_area_left:zoom_area_right + 1], linestyle=':', color='r')
+    axins.plot(e_voltage, res_enum, linestyle=':', color='black')
+    axins.scatter(e_voltage[max_power_index], e_current[max_power_index], s=30, c='r', zorder=2)
+    axins.set_xlim(e_voltage[zoom_area_left], e_voltage[zoom_area_right])
+    axins.set_ylim(e_current[zoom_area_right], e_current[zoom_area_left])
+    axins.grid()
+    plt.xticks(visible=False)
+    plt.yticks(visible=False)
+    mark_inset(ax, axins, loc1=2, loc2=4, fc='none', ec='0.5')
+
+    # Last area zoom
+    zoom_area_left = get_area_edge_val(e_voltage, (e_voltage[-1] - 1.5) / e_voltage[-1]) - 1
+    zoom_area_right = get_area_edge_val(e_voltage, 1) + 1
+
+    axins = zoomed_inset_axes(ax, 2.3, loc=4)
+    axins.plot(e_voltage, e_current, linestyle='-')
+    axins.plot(v_1[zoom_area_left:zoom_area_right + 1],
+               c_1[zoom_area_left:zoom_area_right + 1], linestyle='--')
+    axins.plot(v_21[zoom_area_left:zoom_area_right + 1],
+               c_21[zoom_area_left:zoom_area_right + 1], linestyle='-.', color='m')
+    axins.plot(v_22[zoom_area_left:zoom_area_right + 1],
+               c_22[zoom_area_left:zoom_area_right + 1], linestyle=':', color='r')
+    axins.plot(e_voltage, res_enum, linestyle=':', color='black')
+    axins.scatter(e_voltage[max_power_index], e_current[max_power_index], s=30, c='r', zorder=2)
     axins.set_xlim(e_voltage[zoom_area_left], e_voltage[zoom_area_right])
     axins.set_ylim(e_current[zoom_area_right], e_current[zoom_area_left])
     axins.grid()
@@ -744,119 +984,22 @@ def plot_proposed_model_current_total():
 
 
 def compare_methods():
-    c_1, shift_1 = get_first_method_current()
-    c_21, shift_21 = get_second_method_current()
-    c_22, shift_22 = get_second_method_current(8.21, 2.195e-9, 0.284, 157.853)
-
-    current_arr = proposed_model_current()
-    res_enum = current_arr[0]
-
-    plt.plot(e_voltage, e_current, linestyle='-')
-    plt.plot(e_voltage[:-shift_1], c_1, linestyle='--')
-    plt.plot(e_voltage, c_21, linestyle='--')
-    plt.plot(e_voltage, c_22, linestyle='--')
-    # plt.plot(e_voltage[:-shift_21][second_idx:], c_21[second_idx:], linestyle='-.')
-    # plt.plot(e_voltage[:-shift_22][second_idx:], c_22[second_idx:], linestyle=':')
-    # plt.plot(e_voltage[second_idx:], current_1[second_idx:])
-
-    #for c in current_arr:
-        # plt.plot(e_voltage[second_idx:], c[second_idx:])
-
-    plt.scatter([32.9], [0])
-    plt.axvline(e_voltage[second_idx], linestyle='--', color='black')
-
-    plt.grid()
-    plt.xlabel('V, B')
-    plt.ylabel('I, A')
-    plt.tight_layout()
-    plt.show()
-
-
-def find_mape(arr1, arr2):
-    arr1 = np.array(arr1)
-    arr2 = np.array(arr2)
-
-    error = []
-    for exper_val, approx_val, in zip(arr1, arr2):
-        if exper_val == 0:
-            error.append(0)
-        else:
-            error.append(abs((exper_val - approx_val) / exper_val))
-    return error
-
-
-def find_rmse(arr1, arr2):
-    arr1 = np.array(arr1)
-    arr2 = np.array(arr2)
-
-    mse = 0
-    for i, j in zip(arr1, arr2):
-        mse += (i - j) ** 2
-    return np.sqrt(mse / len(arr1))
-
-
-def read_matlab_txt():
-    with open(INP_FILES_DIR + "MyFile.txt") as file:
-        next(file)
-
-        v_vals = []
-        i_vals = []
-        for line in file:
-            v, i = [float(i) for i in line.split(',')]
-
-            if i <= 0:
-                break
-
-            v_vals.append(v)
-            i_vals.append(i)
-
-    with open(INP_FILES_DIR + "1000.txt") as file:
-        v_vals_n = []
-        i_vals_n = []
-        for line in file:
-            v, i = [float(i) for i in line.split(', ')]
-
-            if i <= 0:
-                break
-
-            v_vals_n.append(v)
-            i_vals_n.append(i)
-
-    c1, shift1 = get_first_method_current()
-
-    error = find_mape(c1, e_current)
-
-    # plt.plot(v_vals, i_vals)
-    plt.plot(e_voltage[:-shift1], c1)
-    plt.plot(e_voltage, e_current, ':', color='k')
-    plt.plot(e_voltage[:-6], error)
-    # plt.plot(v_vals_n, i_vals_n, '--')
-    plt.grid()
-    plt.show()
-
-
-def write_file(filename, arr):
-    with open(OUTPUT_FILES_DIR + filename, 'w') as file:
-        for val in arr:
-            file.write(f'{val}\n')
-    print(f'Done writing {filename}')
-
-
-def read_file(filename):
-    with open(OUTPUT_FILES_DIR + filename) as file:
-        output_data = []
-        for line in file.readlines():
-            output_data.append(float(line))
-    return output_data
+    print(f'\n{SP_NAME}\n')
+    match SP_NAME:
+        case 'KC200GT':
+            compare_methods_kc200gt()
+        case 'ST40':
+            compare_methods_st40()
+        case _:
+            raise ValueError('Wrong SP name')
 
 
 if __name__ == '__main__':
-    e_voltage, e_current = get_data(KC200GT_DIR)
+    sp_init_func, e_voltage, e_current, SP_NAME = get_kc200gt()
     first_idx = get_area_edge_val(e_voltage, 0.65)
     second_idx = get_area_edge_val(e_voltage, 0.95)
-    max_power_idx = get_max_power_idx(e_voltage, e_current)
+    max_power_index = get_max_power_index(e_voltage, e_current)
 
-    # main()
     # plot_iv_curve_split()
     # plot_slope_first()
     # plot_slope_second()
@@ -870,7 +1013,6 @@ if __name__ == '__main__':
     # plot_proposed_model_current_area2()
     # plot_proposed_model_current_area3()
     # plot_proposed_model_current_total()
-    # proposed_model_current()
     # compare_methods()
 
     # read_matlab_txt()

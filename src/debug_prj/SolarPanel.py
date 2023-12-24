@@ -272,12 +272,13 @@ class SolarPanel:
         return current
 
     @staticmethod
-    def find_mape(arr1, arr2, weight_arr=None):
+    def find_mape(arr1, arr2, weight_arr=None, ignore_shape_mismatch=False):
         arr1 = np.array(arr1)
         arr2 = np.array(arr2)
 
-        if arr1.shape != arr2.shape:
-            raise ValueError("Shape mismatch between input arrays.")
+        if not ignore_shape_mismatch:
+            if arr1.shape != arr2.shape:
+                raise ValueError("Shape mismatch between input arrays.")
 
         weight_arr = np.ones_like(arr1) if weight_arr is None else weight_arr
         if arr1.shape != weight_arr.shape:
@@ -293,19 +294,22 @@ class SolarPanel:
         return mare
 
     @staticmethod
-    def find_rmse(arr1, arr2, weight_arr=None):
+    def find_rmse(arr1, arr2, weight_arr=None, ignore_shape_mismatch=False):
         arr1 = np.array(arr1)
         arr2 = np.array(arr2)
 
-        if arr1.shape != arr2.shape:
-            raise ValueError("Shape mismatch between input arrays.")
+        if not ignore_shape_mismatch:
+            if arr1.shape != arr2.shape:
+                raise ValueError("Shape mismatch between input arrays.")
 
         weight_arr = np.ones_like(arr1) if weight_arr is None else weight_arr
         if arr1.shape != weight_arr.shape:
             raise ValueError("Shape mismatch between input arrays and weight array.")
 
-        wmse = weight_arr * (arr1 - arr2) ** 2
-        wmse = np.sum(wmse) / np.sum(weight_arr)
+        wmse = 0
+        for val_1, val_2, w in zip(arr1, arr2, weight_arr):
+            wmse += w * (val_1 - val_2) ** 2
+        wmse = wmse / np.sum(weight_arr)
         return np.sqrt(wmse)
 
     @staticmethod
