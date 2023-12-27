@@ -152,6 +152,22 @@ class SolarPanel:
                 f'\na2 = {self.a2}' + f'\nIpv = {self.Ipv}' + f'\nI0 = {self.I0}'
                 f'\nSlope1 = {self.start_slope}' + f'\nSlope2 = {self.end_slope}')
 
+    def recalc(self, G=1000, T=25, alpha=0.5, voltage=None):
+        self.G = G
+        self.T = T + 273
+
+        self.Ipv = self.find_photovoltaic_current()
+        self.Rp = self.Rp * self.Gstc / G * (self.Tstc / self.T)
+        self.Rs = self.Rs * (self.Gstc / G) ** alpha * self.T / self.Tstc
+
+        if self.T != self.Tstc:
+            Voc = self.V_0 + self.Ku * (self.T - self.Tstc)
+            self.I0 = (self.Ipv - Voc / self.Rp) / (np.exp(Voc / self.a1 / self.Vt) +
+                                                    np.exp(Voc / self.a2 / self.Vt) - 2)
+
+        self.current = self.fixed_point_method(self.Rs, self.Rp, voltage)
+        return self.current
+
     def res_enum(self, weight_arr=None):
         self.current, self.Rs, self.Rp, self.approx_error = self.find_best_fit(weight_arr)
         mape = self.find_mape(self.e_current, self.current)
@@ -166,12 +182,6 @@ class SolarPanel:
         print(f"\nRMSE = {self.approx_error:.5f}")
         print(f"MAPE = {mape:.5f}")
         print(f"Prod = {mape * self.approx_error:.10f}")
-
-    def recalc(self, Rs, Rp, G, voltage=None):
-        self.G = G
-        self.Ipv = self.find_photovoltaic_current()
-        self.current = self.fixed_point_method(Rs, Rp, voltage)
-        return self.current
 
     def create_voltage_mesh(self) -> Sequence[Union[float, int]]:
         mesh_center_index = self.mesh_points_num // 2
@@ -210,8 +220,10 @@ class SolarPanel:
                 (self.start_slope * self.Vt - self.beta * self.I_0 -
                  self.beta * self.V_0 * self.start_slope) *
                 (self.start_slope - self.end_slope)) -
-                    self.end_slope * self.I_0 / (self.start_slope - self.end_slope) *
-                    self.G / self.Gstc)
+                    self.end_slope * self.I_0 / (self.start_slope - self.end_slope))
+
+        self.Ipv = self.Ipv + self.Ki * (self.T - self.Tstc)
+        self.Ipv = self.Ipv * self.G / self.Gstc
         return self.Ipv
 
     def find_parameters(self):
@@ -300,6 +312,8 @@ class SolarPanel:
 
         if not ignore_shape_mismatch:
             if arr1.shape != arr2.shape:
+                print(f"arr1 size {len(arr1)}")
+                print(f"arr2 size {len(arr2)}")
                 raise ValueError("Shape mismatch between input arrays.")
 
         weight_arr = np.ones_like(arr1) if weight_arr is None else weight_arr

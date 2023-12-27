@@ -61,6 +61,7 @@ def find_rmse(arr1, arr2):
         mse += (i - j) ** 2
     return np.sqrt(mse / len(arr1))
 
+
 def write_file(filename, arr):
     with open(OUTPUT_FILES_DIR + filename, 'w') as file:
         for val in arr:
@@ -77,7 +78,8 @@ def read_file(filename):
 
 
 def get_kc200gt_sp_instance():
-    KC200GT_sp = SolarPanel(cell_num=54, Voc=32.9, Isc=8.21, a1=1.0, a2=1.2,
+    KC200GT_sp = SolarPanel(cell_num=54, Voc=32.9, Isc=8.21,
+                            Ku=-0.123, Ki=3.18 / 1000, a1=1.0, a2=1.2,
                             thermal_coefficient_type='absolute', G=1000,
                             experimental_V=e_voltage,
                             experimental_I=e_current,
@@ -110,23 +112,14 @@ def get_st40():
     return sp_func, e_v, e_c, 'ST40'
 
 
-def get_data(filename):
+def get_data(filename, sep=' '):
     x_coord, y_coord = [], []
     with open(filename) as file:
         for line in file:
-            buff = list(map(float, line.strip(" ").split()))
+            buff = [float(i.strip()) for i in line.strip('\n').split(sep) if i]
             x_coord.append(buff[0])
             y_coord.append(buff[1])
     return np.array(x_coord), np.array(y_coord)
-
-
-def get_data_1(file):
-    x_coord, y_coord = [], []
-    for line in file:
-        buff = list(map(float, line.strip(" ").split(", ")))
-        x_coord.append(buff[0])
-        y_coord.append(buff[1])
-    return x_coord, y_coord
 
 
 def normalize(arr, zero_padding=False, offset_coef=0.001):
@@ -917,17 +910,32 @@ def compare_methods_st40():
     v_21 = e_voltage[:-shift_21] if shift_21 else e_voltage
     v_22 = e_voltage[:-shift_22] if shift_22 else e_voltage
 
+    Vmpp = e_voltage[max_power_index]
+    eta = 0.05
+    window = np.exp(-0.5 * ((e_voltage - Vmpp) / eta / Vmpp / 2) ** 2)
+
+    sp = sp_init_func()
+    a = sp.find_rmse(e_current[:-shift_1], c_1, window[:-shift_1])
+    print(np.sum(a))
+
+
+
     current_arr = proposed_model_current()
     res_enum = current_arr[-1]
+    print(sp.find_rmse(e_current, res_enum, window))
 
     fig, ax = plt.subplots(1, 1)
 
+
+
     ax.plot(e_voltage, e_current, linestyle='-')
     ax.plot(v_1, c_1, linestyle='--')
-    ax.plot(v_21, c_21, linestyle='-.', color='m')
-    ax.plot(v_22, c_22, linestyle=':', color='r')
+    #ax.plot(v_21, c_21, linestyle='-.', color='m')
+    #ax.plot(v_22, c_22, linestyle=':', color='r')
     ax.scatter(e_voltage[max_power_index], e_current[max_power_index], s=30, c='r', zorder=2)
     ax.plot(e_voltage, res_enum, linestyle=':', color='black')
+    #ax.plot(e_voltage, window)
+    # ax.plot(e_voltage[:-shift_1], a)
     # ax.axvline(e_voltage[first_idx], linestyle='--', color='black')
     # ax.axvline(e_voltage[second_idx], linestyle='--', color='black')
 
@@ -994,6 +1002,94 @@ def compare_methods():
             raise ValueError('Wrong SP name')
 
 
+def compare_insolation_dependence():
+    G_arr = [800, 600, 400, 200]
+
+    max_power_index = get_max_power_index(e_voltage, e_current)
+    Vmpp = e_voltage[max_power_index]
+    eta = 0.1
+    weight = np.exp(-0.5 * ((e_voltage - Vmpp) / eta / Vmpp / 2) ** 2)
+    sp = sp_init_func()
+    sp.res_enum(weight)
+    print(sp, '\n')
+
+    plt.plot(e_voltage, e_current, color='#1f77b4')
+    plt.plot(e_voltage, sp.current, linestyle=':', color='k')
+
+    for G in G_arr:
+        voltage, current = get_data(INP_FILES_DIR + f'{G}.txt', sep=',')
+
+        sp.recalc(G)
+        current_approx = sp.current
+        print(sp)
+
+        print('RMSE_1 = ', rmse := sp.find_rmse(current, current_approx, ignore_shape_mismatch=True))
+        print('MAPE_1 = ', mape := sp.find_mape(current, current_approx, ignore_shape_mismatch=True))
+        print('P_1 = ', mape * rmse)
+        print('\n\n')
+
+        plt.plot(voltage, current, color='#1f77b4')
+        plt.plot(sp.e_voltage, current_approx, linestyle=':', color='black')
+
+    plt.xlim(left=0)
+    plt.ylim(bottom=0)
+    plt.grid()
+    plt.xlabel('V, B')
+    plt.ylabel('I, A')
+    plt.tight_layout()
+    plt.show()
+
+
+def compare_temperature_dependence():
+    T_arr = [50, 75]
+
+    max_power_index = get_max_power_index(e_voltage, e_current)
+    Vmpp = e_voltage[max_power_index]
+    eta = 0.1
+    weight = np.exp(-0.5 * ((e_voltage - Vmpp) / eta / Vmpp / 2) ** 2)
+    sp = sp_init_func()
+    sp.res_enum(weight)
+    print(sp, '\n')
+
+    plt.plot(e_voltage, e_current, color='#1f77b4')
+    plt.plot(e_voltage, sp.current, linestyle=':', color='k')
+
+    for T in T_arr:
+        voltage, current = get_data(INP_FILES_DIR + f'{T}.txt', sep=',')
+
+        max_power_index = get_max_power_index(voltage, current)
+        Vmpp = voltage[max_power_index]
+        eta = 0.1
+        weight = np.exp(-0.5 * ((voltage - Vmpp) / eta / Vmpp / 2) ** 2)
+
+        # Recalculating to get current for graph using original voltage mesh
+        sp.recalc(T=T)
+        current_approx = sp.current
+
+        # Recalculating to get current to find RMSE and other errors
+        current_error = sp.fixed_point_method(sp.Rs, sp.Rp, voltage=voltage)
+        rmse = sp.find_rmse(current, current_error, weight)
+        mape = sp.find_mape(current, current_error)
+        prod = rmse * mape
+
+        print(rmse)
+        print(mape)
+        print(prod)
+        print(sp)
+        print()
+
+        plt.plot(voltage, current, color='#1f77b4')
+        plt.plot(sp.voltage, current_approx, linestyle=':', color='black')
+
+    plt.xlim(left=0)
+    plt.ylim(bottom=0)
+    plt.grid()
+    plt.xlabel('V, B')
+    plt.ylabel('I, A')
+    plt.tight_layout()
+    plt.show()
+
+
 if __name__ == '__main__':
     sp_init_func, e_voltage, e_current, SP_NAME = get_kc200gt()
     first_idx = get_area_edge_val(e_voltage, 0.65)
@@ -1014,5 +1110,7 @@ if __name__ == '__main__':
     # plot_proposed_model_current_area3()
     # plot_proposed_model_current_total()
     # compare_methods()
+    # compare_insolation_dependence()
+    # compare_temperature_dependence()
 
     # read_matlab_txt()
