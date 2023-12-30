@@ -316,12 +316,9 @@ def plot_gaussian_window(use_alpha_enum=True, use_one_diode_model=False, recalcu
 
     print(sp, '\n')
 
-    mape = find_mape(e_current, sp.current)
-
     plt.plot(e_voltage[first_idx:], e_current[first_idx:], linestyle='-')
     plt.plot(sp.voltage[first_idx:], sp.current[first_idx:], linestyle='--')
     plt.plot(e_voltage[first_idx:], window[first_idx:], linestyle='-.')
-    plt.plot(e_voltage, mape)
     plt.axvline(e_voltage[second_idx], linestyle='--', color='black')
 
     plt.ylim(bottom=0)
@@ -340,16 +337,16 @@ def plot_error_bar_graph():
 
     # Alpha enum
     """bin_vals = {
-        '$wRMSE$': (0.09199, 0.04377, 0.10426, 0.10119),
-        '$MAPE$': (0.01859, 0.08241, 0.01859, 0.01859),
-        '$P$': [i * 15 for i in (0.0017105123, 0.0036067037, 0.0019386657, 0.0018815802)],
+        '$wRMSE$': (0.06893, 0.05558, 0.07808, 0.07521),
+        '$MAPE$': (0.01473, 0.09642, 0.01473, 0.01473),
+        '$M$': [i * 15 for i in (0.00102, 0.00536, 0.00115, 0.00111)],
     }"""
 
     # Res enum
     bin_vals = {
-        '$wRMSE$': (0.01816, 0.02007, 0.02038, 0.01977),
-        '$MAPE$': (0.00578, 0.00619, 0.00581, 0.00582),
-        '$P$': [i * 100 for i in (0.0001049787, 0.0001242272, 0.0001183182, 0.0001150385)],
+        '$wRMSE$': (0.01794, 0.02008, 0.02000, 0.01996),
+        '$MAPE$': (0.00582, 0.00601, 0.00582, 0.00580),
+        '$M$': [i * 100 for i in (0.00010, 0.00012, 0.00012, 0.00011)],
     }
 
     x = np.arange(len(error_names))
@@ -401,8 +398,8 @@ def plot_different_alpha_enum_approaches():
 
     # area 2
     ax1.plot(e_voltage[first_idx:second_idx], e_current[first_idx:second_idx], linestyle='-')
-    ax1.plot(sp.voltage[first_idx:second_idx], current_2[first_idx:second_idx], linestyle='--')
-    ax1.plot(sp.voltage[first_idx:second_idx], current_1[first_idx:second_idx],
+    ax1.plot(sp.voltage[first_idx:second_idx], current_1[first_idx:second_idx], linestyle='--')
+    ax1.plot(sp.voltage[first_idx:second_idx], current_2[first_idx:second_idx],
              linestyle=':', color='k')
     ax1.grid()
     ax1.set_xlabel('V, B \na')
