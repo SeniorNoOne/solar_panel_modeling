@@ -247,7 +247,7 @@ class SolarCell:
                                        exp(arg / self.a1) + exp(
                                    arg / self.a2) - 2)"""
 
-                func_val = self.Ipv - (V + last_current_val * Rs) / Rp - self.I0 * exp(
+                func_val = self.Ipv - (V + last_current_val * Rs) / Rp - exp(
                     arg + lIb) - exp(arg / self.a2 + lIb) + 2 * self.I0
                 
 

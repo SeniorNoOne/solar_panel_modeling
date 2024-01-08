@@ -1,3 +1,6 @@
+import numpy as np
+
+
 def replace_str(initial_str: str, str_to_replace: str,
                 replace_with: str) -> str:
     while str_to_replace in initial_str:
